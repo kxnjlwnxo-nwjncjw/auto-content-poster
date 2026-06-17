@@ -1,11 +1,16 @@
 """
 Agent Coordinator — starts and monitors all background agents.
 
-Agents started:
-  1. content-agent    — generates YouTube video drafts via Claude AI
-  2. auto-reviewer    — auto-approves pending content (if YOUTUBE_AUTO_APPROVE=true)
-  3. git-agent        — commits content/ files and pushes to origin
-  4. auto-poster      — posts approved content to YouTube (existing module)
+Pipeline agents (in execution order):
+  1. content-agent      — generates YouTube video drafts via Claude AI
+  2. script-agent       — writes full spoken scripts for each draft
+  3. higgsfield-agent   — triggers AI video/image generation for submitted items
+  4. auto-reviewer      — auto-approves pending content (if YOUTUBE_AUTO_APPROVE=true)
+  5. assembly-agent     — concatenates approved assets into final video (ffmpeg)
+  6. poster-agent       — posts assembled+approved content to YouTube
+
+Support agents:
+  7. git-agent          — commits content/ files and pushes to origin
 
 Usage:
     from src.agents.coordinator import Coordinator
@@ -92,22 +97,36 @@ class Coordinator:
 
 
 def build_coordinator() -> Coordinator:
-    """Create and populate the coordinator with all configured agents."""
+    """Create and populate the coordinator with all pipeline agents."""
     from src.agents.content_agent import ContentAgent
+    from src.agents.script_agent import ScriptAgent
+    from src.agents.higgsfield_agent import HiggsFieldAgent
     from src.agents.auto_reviewer import AutoReviewerAgent
+    from src.agents.assembly_agent import AssemblyAgent
+    from src.agents.poster_agent import PosterAgent
     from src.agents.git_agent import GitAgent
-    from src.youtube.auto_poster import start_auto_poster
     from src.youtube.queue import init_db
+    from src.higgsfield.generator import ffmpeg_available
 
     init_db()
 
     c = Coordinator()
+
+    # Pipeline agents — registered in execution order
     c.register(ContentAgent.from_env())
+    c.register(ScriptAgent())
+    c.register(HiggsFieldAgent())
     c.register(AutoReviewerAgent())
+    c.register(AssemblyAgent())
+    c.register(PosterAgent())
+
+    # Support agents
     c.register(GitAgent.from_env())
 
-    # The existing auto-poster is a raw thread, not an Agent subclass — start it separately
-    start_auto_poster()
-    console.print("[bold green]✓[/bold green] auto-poster started (posts approved content every 60s)")
+    if not ffmpeg_available():
+        console.print(
+            "[yellow]⚠  ffmpeg not found — assembly-agent will be inactive until installed.[/yellow]\n"
+            "   Install with: [bold]brew install ffmpeg[/bold]"
+        )
 
     return c

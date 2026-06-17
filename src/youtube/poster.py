@@ -1,8 +1,15 @@
-"""Post approved content to YouTube via Composio SDK (with YouTube Data API fallback)."""
+"""Post approved content to YouTube via Composio v3 API (with YouTube Data API fallback)."""
+from __future__ import annotations
+import json
 import os
+import urllib.request
+import urllib.parse
 from rich.console import Console
 
 console = Console()
+
+COMPOSIO_MCP_URL = "https://connect.composio.dev/mcp"
+CONNECTED_ACCOUNT_ID = "ca_hrz2i9PX3rtf"
 
 
 def post_to_youtube(content: dict) -> tuple[bool, str, str]:
@@ -10,56 +17,116 @@ def post_to_youtube(content: dict) -> tuple[bool, str, str]:
     Post content to YouTube.
 
     Returns (success, youtube_video_id_or_error, youtube_url).
-    Tries Composio first, falls back to YouTube Data API if COMPOSIO_API_KEY is absent.
+    Tries Composio MCP first, falls back to YouTube Data API.
     """
-    api_key = os.getenv("COMPOSIO_API_KEY")
-    if api_key:
-        return _post_via_composio(content, api_key)
+    mcp_token = os.getenv("COMPOSIO_MCP_TOKEN")
+    if mcp_token:
+        return _post_via_composio_mcp(content, mcp_token)
     return _post_via_youtube_api(content)
 
 
-def _post_via_composio(content: dict, api_key: str) -> tuple[bool, str, str]:
+def _mcp_call(token: str, method: str, params: dict) -> dict:
+    """Make a single JSON-RPC call to the Composio MCP server."""
+    session_id = _mcp_init(token)
+    payload = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": method,
+        "params": params,
+    }).encode()
+    req = urllib.request.Request(
+        COMPOSIO_MCP_URL,
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2025-03-26",
+            "Mcp-Session-Id": session_id,
+        },
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        for line in resp:
+            line = line.decode().strip()
+            if line.startswith("data:"):
+                obj = json.loads(line[5:])
+                if "result" in obj:
+                    content_blocks = obj["result"].get("content", [])
+                    for block in content_blocks:
+                        if block.get("type") == "text":
+                            return json.loads(block["text"])
+    return {}
+
+
+def _mcp_init(token: str) -> str:
+    """Initialize MCP session and return session ID."""
+    payload = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "auto-content-poster", "version": "1.0"},
+        },
+    }).encode()
+    req = urllib.request.Request(
+        COMPOSIO_MCP_URL,
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2025-03-26",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return resp.headers.get("Mcp-Session-Id", "")
+
+
+def _post_via_composio_mcp(content: dict, token: str) -> tuple[bool, str, str]:
+    """Upload video to YouTube via Composio MCP COMPOSIO_MULTI_EXECUTE_TOOL."""
+    video_path = content.get("assembled_video_path") or content.get("video_path")
+    if not video_path or not os.path.exists(str(video_path)):
+        return False, "no valid video file to upload", ""
+
     try:
-        from composio import ComposioToolSet, Action  # type: ignore
+        result = _mcp_call(token, "tools/call", {
+            "name": "COMPOSIO_MULTI_EXECUTE_TOOL",
+            "arguments": {
+                "connected_account_id": CONNECTED_ACCOUNT_ID,
+                "tool_slug": "YOUTUBE_UPLOAD_VIDEO",
+                "input_params": {
+                    "title": content["title"],
+                    "description": content.get("description", ""),
+                    "tags": content.get("tags") or [],
+                    "categoryId": content.get("category_id", "22"),
+                    "privacyStatus": content.get("privacy_status", "public"),
+                    "videoPath": video_path,
+                },
+            },
+        })
 
-        toolset = ComposioToolSet(api_key=api_key)
-        params: dict = {
-            "title": content["title"],
-            "description": content.get("description", ""),
-            "tags": content.get("tags") or [],
-            "category_id": content.get("category_id", "22"),
-            "privacy_status": content.get("privacy_status", "public"),
-        }
+        data = result.get("data", {})
+        if not result.get("successful", False):
+            err = result.get("error") or str(data)
+            console.print(f"[yellow]Composio MCP upload failed: {err}. Falling back to YouTube API.[/yellow]")
+            return _post_via_youtube_api(content)
 
-        # Prefer local file; fall back to URL
-        if content.get("video_path"):
-            params["video_path"] = content["video_path"]
-        elif content.get("video_url"):
-            params["video_url"] = content["video_url"]
-        else:
-            return False, "no video source provided", ""
-
-        # Thumbnail (optional)
-        if content.get("thumbnail_path"):
-            params["thumbnail_path"] = content["thumbnail_path"]
-        elif content.get("thumbnail_url"):
-            params["thumbnail_url"] = content["thumbnail_url"]
-
-        result = toolset.execute_action(
-            action=Action.YOUTUBE_UPLOAD_VIDEO,
-            params=params,
+        video_id = (
+            data.get("id")
+            or data.get("videoId")
+            or data.get("video_id", "")
         )
-        video_id: str = result.get("data", {}).get("id", "")
         yt_url = f"https://www.youtube.com/watch?v={video_id}" if video_id else ""
-        console.print(f"[green]Composio upload success → {yt_url}[/green]")
+        console.print(f"[green]Composio MCP upload success → {yt_url or 'posted'}[/green]")
         return True, video_id, yt_url
 
-    except ImportError:
-        console.print("[yellow]composio-core not installed. Falling back to YouTube Data API.[/yellow]")
-        return _post_via_youtube_api(content)
     except Exception as exc:
-        console.print(f"[red]Composio upload error: {exc}[/red]")
-        return False, str(exc), ""
+        console.print(f"[yellow]Composio MCP error: {exc}. Falling back to YouTube API.[/yellow]")
+        return _post_via_youtube_api(content)
 
 
 def _post_via_youtube_api(content: dict) -> tuple[bool, str, str]:
@@ -87,7 +154,7 @@ def _post_via_youtube_api(content: dict) -> tuple[bool, str, str]:
                 if not os.path.exists(creds_file):
                     msg = (
                         f"YouTube credentials not found at {creds_file}. "
-                        "Set COMPOSIO_API_KEY or provide youtube_client_secret.json."
+                        "Set COMPOSIO_MCP_TOKEN or provide youtube_client_secret.json."
                     )
                     console.print(f"[red]{msg}[/red]")
                     return False, msg, ""
@@ -98,7 +165,7 @@ def _post_via_youtube_api(content: dict) -> tuple[bool, str, str]:
 
         youtube = build("youtube", "v3", credentials=creds)
 
-        video_path = content.get("video_path")
+        video_path = content.get("assembled_video_path") or content.get("video_path")
         if not video_path:
             return False, "video_path required for direct YouTube API upload", ""
 

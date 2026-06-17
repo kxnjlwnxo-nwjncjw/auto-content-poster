@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from datetime import datetime
+from typing import Optional
 from rich.console import Console
 
 console = Console()
@@ -19,7 +20,7 @@ class Agent:
 
     def __init__(self):
         self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._thread: Optional[threading.Thread] = None
         self.runs: int = 0
         self.errors: int = 0
         self.last_run: datetime | None = None
