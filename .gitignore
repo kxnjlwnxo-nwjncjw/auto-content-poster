@@ -9,3 +9,7 @@ venv/
 .venv/
 config/youtube_client_secret.json
 *.session
+
+data/
+*.pickle
+*.db

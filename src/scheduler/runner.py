@@ -31,6 +31,10 @@ def run_posting_cycle():
         module = PLATFORM_MODULES[platform]
         success = module.post(post)
         results[platform] = "OK" if success else "FAIL"
+        if success:
+            from src.post_logger import save_post_preview
+            thumb = save_post_preview(post)
+            console.print(f"  [dim]Saved preview → {thumb}[/dim]")
 
     console.print(f"Results: {results}")
 

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Content Queue</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="logo">
+        <div class="logo-icon">▶</div>
+        YouTube Queue
+      </div>
+      <div id="stats-bar">
+        <div class="stat" data-filter="pending_review">
+          <div class="dot dot-pending"></div>
+          <span id="stat-pending">0</span>&nbsp;pending
+        </div>
+        <div class="stat" data-filter="approved">
+          <div class="dot dot-approved"></div>
+          <span id="stat-approved">0</span>&nbsp;approved
+        </div>
+        <div class="stat" data-filter="posted">
+          <div class="dot dot-posted"></div>
+          <span id="stat-posted">0</span>&nbsp;posted
+        </div>
+      </div>
+    </div>
+    <button class="btn-primary" id="btn-new">+ New Draft</button>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="tabs">
+    <button class="tab active" data-status="">All</button>
+    <button class="tab" data-status="draft">Draft</button>
+    <button class="tab" data-status="pending_review">Pending Review</button>
+    <button class="tab" data-status="approved">Approved</button>
+    <button class="tab" data-status="posted">Posted</button>
+    <button class="tab" data-status="rejected">Rejected</button>
+  </nav>
+
+  <!-- Content grid -->
+  <main>
+    <div id="content-grid"><div class="loading-center"><div class="spinner"></div></div></div>
+  </main>
+
+  <!-- Review panel overlay -->
+  <div id="overlay" class="hidden"></div>
+
+  <!-- Review panel -->
+  <aside id="panel" class="panel hidden">
+    <div class="panel-header">
+      <h2>Content Review</h2>
+      <button class="btn-close" id="panel-close">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-actions" id="panel-actions"></div>
+  </aside>
+
+  <!-- New/Edit Draft modal -->
+  <div class="modal hidden" id="draft-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 id="draft-modal-title">New Draft</h2>
+        <button class="btn-close" id="draft-modal-close">✕</button>
+      </div>
+      <form id="draft-form" class="form-body">
+        <div class="field">
+          <label>Title <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="title" required placeholder="Your video title">
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea name="description" rows="5" placeholder="Video description (supports newlines)"></textarea>
+        </div>
+        <div class="field">
+          <label>Video File Path (local)</label>
+          <input type="text" name="video_path" placeholder="/Users/you/Videos/myvideo.mp4">
+        </div>
+        <div class="field">
+          <label>Video URL (remote — if not local)</label>
+          <input type="url" name="video_url" placeholder="https://example.com/video.mp4">
+        </div>
+        <div class="field">
+          <label>Thumbnail Path (local)</label>
+          <input type="text" name="thumbnail_path" placeholder="/Users/you/thumbs/thumb.jpg">
+        </div>
+        <div class="field">
+          <label>Thumbnail URL</label>
+          <input type="url" name="thumbnail_url" placeholder="https://example.com/thumb.jpg">
+        </div>
+        <div class="field">
+          <label>Tags <span style="color:var(--text-muted);font-weight:400">(comma-separated)</span></label>
+          <input type="text" name="tags" placeholder="tutorial, productivity, tech">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Privacy</label>
+            <select name="privacy_status">
+              <option value="public">Public</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="private">Private</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select name="category_id">
+              <option value="22">People &amp; Blogs</option>
+              <option value="28">Science &amp; Technology</option>
+              <option value="10">Music</option>
+              <option value="24">Entertainment</option>
+              <option value="20">Gaming</option>
+              <option value="25">News &amp; Politics</option>
+              <option value="26">Howto &amp; Style</option>
+              <option value="17">Sports</option>
+              <option value="15">Pets &amp; Animals</option>
+              <option value="1">Film &amp; Animation</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Scheduled Post Time <span style="color:var(--text-muted);font-weight:400">(leave blank to post immediately on approval)</span></label>
+          <input type="datetime-local" name="scheduled_time">
+        </div>
+        <div class="field">
+          <label>Internal Notes</label>
+          <input type="text" name="notes" placeholder="Private notes (not published)">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="draft-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="draft-submit">Save Draft</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Reject reason modal -->
+  <div class="modal hidden" id="reject-modal">
+    <div class="modal-box sm">
+      <div class="modal-header">
+        <h2>Reject Content</h2>
+        <button class="btn-close" id="reject-modal-close">✕</button>
+      </div>
+      <div class="form-body">
+        <div class="field">
+          <label>Reason for rejection</label>
+          <textarea id="reject-reason" rows="3" placeholder="Tell yourself why this was rejected…"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn-secondary" id="reject-cancel">Cancel</button>
+          <button class="btn-danger" id="reject-confirm">Reject</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
