@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+logs/
+*.log
+venv/
+.venv/
+config/youtube_client_secret.json
+*.session

@@ -1,0 +1,51 @@
+NICHE_PROFILES = {
+    "fitness": {
+        "topics": ["workout tips", "nutrition advice", "weight loss", "muscle building", "mental health"],
+        "tone": "energetic and motivating",
+        "hashtags": ["#fitness", "#workout", "#health", "#gym", "#motivation", "#fitlife"],
+        "emoji": True,
+        "post_format": "tip",
+    },
+    "crypto": {
+        "topics": ["market analysis", "DeFi", "Bitcoin", "altcoins", "NFTs", "blockchain news"],
+        "tone": "informative and analytical",
+        "hashtags": ["#crypto", "#bitcoin", "#blockchain", "#DeFi", "#web3", "#cryptocurrency"],
+        "emoji": True,
+        "post_format": "insight",
+    },
+    "motivation": {
+        "topics": ["mindset", "success habits", "overcoming failure", "goal setting", "productivity"],
+        "tone": "inspiring and personal",
+        "hashtags": ["#motivation", "#success", "#mindset", "#growthmindset", "#inspiration"],
+        "emoji": True,
+        "post_format": "quote",
+    },
+    "tech": {
+        "topics": ["AI tools", "software releases", "programming tips", "gadgets", "cybersecurity"],
+        "tone": "clear and informative",
+        "hashtags": ["#tech", "#AI", "#programming", "#coding", "#technology", "#innovation"],
+        "emoji": False,
+        "post_format": "news",
+    },
+    "food": {
+        "topics": ["recipes", "restaurant reviews", "meal prep", "cooking tips", "nutrition facts"],
+        "tone": "warm and descriptive",
+        "hashtags": ["#food", "#recipe", "#cooking", "#foodie", "#mealprep", "#healthyfood"],
+        "emoji": True,
+        "post_format": "tip",
+    },
+    "fashion": {
+        "topics": ["outfit ideas", "style tips", "trends", "sustainable fashion", "budget looks"],
+        "tone": "trendy and expressive",
+        "hashtags": ["#fashion", "#style", "#ootd", "#outfit", "#trend"],
+        "emoji": True,
+        "post_format": "tip",
+    },
+    "business": {
+        "topics": ["entrepreneurship", "marketing", "personal finance", "passive income", "side hustles"],
+        "tone": "professional and actionable",
+        "hashtags": ["#business", "#entrepreneur", "#marketing", "#money", "#finance"],
+        "emoji": False,
+        "post_format": "insight",
+    },
+}
