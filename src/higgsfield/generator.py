@@ -138,9 +138,21 @@ def generate_all_assets(content_id: str, title: str) -> dict:
 
 # ── Video assembly ─────────────────────────────────────────────────────────────
 
+def _ffmpeg_bin() -> str:
+    """Return path to ffmpeg binary, checking ~/bin as fallback."""
+    import shutil
+    from pathlib import Path
+    if shutil.which("ffmpeg"):
+        return "ffmpeg"
+    local = str(Path.home() / "bin" / "ffmpeg")
+    if Path(local).exists():
+        return local
+    return "ffmpeg"
+
+
 def ffmpeg_available() -> bool:
     try:
-        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+        subprocess.run([_ffmpeg_bin(), "-version"], capture_output=True, check=True)
         return True
     except (FileNotFoundError, subprocess.CalledProcessError):
         return False
@@ -192,7 +204,7 @@ def assemble_video(
 
     try:
         result = subprocess.run(
-            ["ffmpeg", "-y", "-f", "concat", "-safe", "0",
+            [_ffmpeg_bin(), "-y", "-f", "concat", "-safe", "0",
              "-i", list_path, "-c", "copy", out_path],
             capture_output=True, text=True, timeout=300,
         )
