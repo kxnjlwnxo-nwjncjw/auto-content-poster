@@ -11,9 +11,20 @@ import os
 import random
 from rich.console import Console
 from src.agents.base import Agent
-from src.youtube.queue import init_db, create_draft, submit_for_review
+from src.youtube.queue import init_db, create_draft, submit_for_review, list_content
 
 console = Console()
+
+DEDUP_LOOKBACK = 30
+
+
+def _recent_titles() -> list[str]:
+    """Return the last DEDUP_LOOKBACK titles from the queue to avoid duplicates."""
+    try:
+        all_items = list_content()
+        return [i["title"] for i in all_items[-DEDUP_LOOKBACK:] if i.get("title")]
+    except Exception:
+        return []
 
 
 def _generate_youtube_content(niche: str, topic: str, profile: dict) -> dict:
@@ -24,11 +35,16 @@ def _generate_youtube_content(niche: str, topic: str, profile: dict) -> dict:
     hashtags = " ".join(profile.get("hashtags", []))
     tone = profile.get("tone", "engaging")
 
+    recent = _recent_titles()
+    dedup_block = ""
+    if recent:
+        dedup_block = f"\n\nRecent titles already in queue (DO NOT duplicate or closely repeat these):\n" + "\n".join(f"- {t}" for t in recent[-10:])
+
     prompt = f"""You are an expert YouTube content creator for the {niche} niche.
 Generate a complete YouTube video content package for this topic: {topic}
 
 Tone: {tone}
-Relevant hashtags: {hashtags}
+Relevant hashtags: {hashtags}{dedup_block}
 
 Return ONLY a valid JSON object with these exact keys (no markdown, no explanation):
 {{

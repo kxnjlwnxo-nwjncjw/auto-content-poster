@@ -55,7 +55,7 @@ def generate_intro(content_id: str, title: str) -> str:
 
 
 def generate_thumbnail(content_id: str, title: str) -> str:
-    """Generate a YouTube thumbnail image. Returns local path."""
+    """Generate a YouTube thumbnail image with title text burned in. Returns local path."""
     client = _client()
     dest   = str(_asset_dir(content_id) / "thumbnail.jpg")
     prompt = (
@@ -64,11 +64,69 @@ def generate_thumbnail(content_id: str, title: str) -> str:
         "eye-catching composition, professional quality, 1280x720."
     )
     if client.mock:
-        return client.mock_thumbnail(dest, title)
+        raw = client.mock_thumbnail(dest, title)
+    else:
+        job_id = client.create_image_job(prompt, width=1280, height=720)
+        job    = client.wait_for_job(job_id)
+        raw    = client.download(job["output_url"], dest)
 
-    job_id = client.create_image_job(prompt, width=1280, height=720)
-    job    = client.wait_for_job(job_id)
-    return client.download(job["output_url"], dest)
+    return _overlay_title(raw, title)
+
+
+def _overlay_title(image_path: str, title: str) -> str:
+    """Burn bold title text onto thumbnail. Returns same path (edited in-place)."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import textwrap
+
+        img = Image.open(image_path).convert("RGB")
+        W, H = img.size
+        draw = ImageDraw.Draw(img)
+
+        # Try to load a bold system font, fall back to default
+        font_size = max(48, W // 18)
+        font = None
+        for font_path in [
+            "/System/Library/Fonts/Supplemental/Impact.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/Library/Fonts/Arial Bold.ttf",
+        ]:
+            try:
+                font = ImageFont.truetype(font_path, font_size)
+                break
+            except Exception:
+                pass
+        if font is None:
+            font = ImageFont.load_default()
+
+        # Wrap title to ~30 chars per line
+        lines = textwrap.wrap(title.upper(), width=22)[:3]
+        line_h = font_size + 10
+        total_h = line_h * len(lines) + 20
+
+        # Semi-transparent black bar at bottom
+        bar_y = H - total_h - 20
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        bar = ImageDraw.Draw(overlay)
+        bar.rectangle([(0, bar_y - 10), (W, H)], fill=(0, 0, 0, 160))
+        img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+        draw = ImageDraw.Draw(img)
+
+        # Draw each line centered with white text + black shadow
+        for i, line in enumerate(lines):
+            bbox = draw.textbbox((0, 0), line, font=font)
+            tw = bbox[2] - bbox[0]
+            x = (W - tw) // 2
+            y = bar_y + i * line_h
+            draw.text((x + 2, y + 2), line, font=font, fill=(0, 0, 0))
+            draw.text((x, y), line, font=font, fill=(255, 255, 255))
+
+        img.save(image_path, "JPEG", quality=92)
+    except Exception as exc:
+        # Non-fatal — return original if overlay fails
+        pass
+
+    return image_path
 
 
 def generate_scenes(content_id: str, title: str, count: Optional[int] = None) -> list[str]:
