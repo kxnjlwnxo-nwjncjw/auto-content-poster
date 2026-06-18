@@ -32,6 +32,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "scenes_paths":         "TEXT DEFAULT '[]'",
         "higgsfield_approvals": "TEXT DEFAULT '{}'",
         "assembled_video_path": "TEXT DEFAULT ''",
+        "voiceover_path":       "TEXT DEFAULT ''",
+        "srt_path":             "TEXT DEFAULT ''",
+        "reels_path":           "TEXT DEFAULT ''",
     }
     for col, typedef in additions.items():
         if col not in cols:
@@ -69,7 +72,10 @@ def init_db() -> None:
                 intro_path           TEXT DEFAULT '',
                 scenes_paths         TEXT DEFAULT '[]',
                 higgsfield_approvals TEXT DEFAULT '{}',
-                assembled_video_path TEXT DEFAULT ''
+                assembled_video_path TEXT DEFAULT '',
+                voiceover_path       TEXT DEFAULT '',
+                srt_path             TEXT DEFAULT '',
+                reels_path           TEXT DEFAULT ''
             )
         """)
         _migrate(conn)
