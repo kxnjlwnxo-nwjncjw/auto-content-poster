@@ -388,6 +388,27 @@ def reject_asset(content_id: str, asset: str) -> Optional[dict]:
     return get_content(content_id)
 
 
+def update_asset_paths(content_id: str, **kwargs) -> Optional[dict]:
+    """
+    Update pipeline-generated asset paths (voiceover_path, srt_path, reels_path, etc.)
+    for any content regardless of status (except 'posted').
+    """
+    allowed = {"voiceover_path", "srt_path", "reels_path", "assembled_video_path"}
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return get_content(content_id)
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [content_id]
+    with _connect() as conn:
+        conn.execute(
+            f"UPDATE content SET {set_clause} WHERE id = ? AND status != 'posted'",
+            values,
+        )
+        conn.commit()
+    return get_content(content_id)
+
+
 def set_assembled_video(content_id: str, assembled_path: str) -> Optional[dict]:
     now = datetime.utcnow().isoformat()
     with _connect() as conn:
