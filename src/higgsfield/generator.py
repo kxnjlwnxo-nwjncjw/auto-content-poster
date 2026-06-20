@@ -19,10 +19,20 @@ from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import os
 from src.higgsfield.client import HiggsFieldClient
 from config.settings import HIGGSFIELD_API_KEY, HIGGSFIELD_SCENES_COUNT
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data" / "higgsfield"
+
+_MCP_TOKEN = os.getenv("HIGGSFIELD_MCP_TOKEN", "")
+
+
+def _mcp() -> "HiggsFieldMCPClient | None":  # noqa: F821
+    if not _MCP_TOKEN:
+        return None
+    from src.higgsfield.mcp_client import HiggsFieldMCPClient
+    return HiggsFieldMCPClient(_MCP_TOKEN)
 
 
 def _client() -> HiggsFieldClient:
@@ -39,16 +49,22 @@ def _asset_dir(content_id: str) -> Path:
 
 def generate_intro(content_id: str, title: str) -> str:
     """Generate a cinematic 5-second intro video. Returns local path."""
-    client = _client()
     dest   = str(_asset_dir(content_id) / "intro.mp4")
     prompt = (
         f"Cinematic YouTube intro animation for a video titled '{title}'. "
         "Bold motion graphics, dramatic camera push-in, dynamic lighting, "
         "professional broadcast quality, 5 seconds, 16:9."
     )
+    mcp = _mcp()
+    if mcp:
+        job_id = mcp.generate_video(prompt, duration=5, aspect_ratio="16:9")
+        result = mcp.wait_for_job(job_id)
+        url    = mcp.get_output_url(result)
+        return mcp.download(url, dest)
+
+    client = _client()
     if client.mock:
         return client.mock_video_marker(dest, f"Intro: {title}")
-
     job_id = client.create_video_job(prompt, duration=5, aspect_ratio="16:9", style="cinematic")
     job    = client.wait_for_job(job_id)
     return client.download(job["output_url"], dest)
@@ -56,13 +72,21 @@ def generate_intro(content_id: str, title: str) -> str:
 
 def generate_thumbnail(content_id: str, title: str) -> str:
     """Generate a YouTube thumbnail image with title text burned in. Returns local path."""
-    client = _client()
     dest   = str(_asset_dir(content_id) / "thumbnail.jpg")
     prompt = (
         f"YouTube thumbnail for video titled '{title}'. "
         "Bold vibrant colours, high contrast, clear space for title text overlay, "
         "eye-catching composition, professional quality, 1280x720."
     )
+    mcp = _mcp()
+    if mcp:
+        job_id = mcp.generate_image(prompt, aspect_ratio="16:9")
+        result = mcp.wait_for_job(job_id)
+        url    = mcp.get_output_url(result)
+        raw    = mcp.download(url, dest)
+        return _overlay_title(raw, title)
+
+    client = _client()
     if client.mock:
         raw = client.mock_thumbnail(dest, title)
     else:
@@ -144,6 +168,21 @@ def generate_scenes(content_id: str, title: str, count: Optional[int] = None) ->
         for i in range(n)
     ]
 
+    mcp = _mcp()
+    if mcp:
+        def _gen_scene_mcp(i_prompt):
+            i, prompt = i_prompt
+            dest   = str(_asset_dir(content_id) / f"scene_{i + 1:03d}.mp4")
+            job_id = mcp.generate_video(prompt, duration=5, aspect_ratio="16:9")
+            result = mcp.wait_for_job(job_id)
+            url    = mcp.get_output_url(result)
+            return i, mcp.download(url, dest)
+
+        with ThreadPoolExecutor(max_workers=n) as pool:
+            results = list(pool.map(_gen_scene_mcp, enumerate(scene_prompts)))
+        return [path for _, path in sorted(results)]
+
+    client = _client()
     if client.mock:
         for i, prompt in enumerate(scene_prompts):
             dest = str(_asset_dir(content_id) / f"scene_{i + 1:03d}.mp4")
